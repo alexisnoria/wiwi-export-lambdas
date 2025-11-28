@@ -1,0 +1,84 @@
+service: export-data
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: python3.9
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - cognito-idp:InitiateAuth
+        - s3:ListBucket
+        - s3:GetObject
+      Resource: "*"
+  environment:
+    COGNITO_CLIENT_ID: !Ref CognitoUserPoolClient
+
+  httpApi:
+    cors:
+      allowedOrigins:
+        - '*'
+      allowedHeaders:
+        - Content-Type
+        - Authorization
+      allowedMethods:
+        - GET
+        - POST
+        - OPTIONS
+      exposedResponseHeaders:
+        - Content-Disposition
+    authorizers:
+      serviceAuthorizer:
+        type: jwt
+        identitySource: $request.header.Authorization
+        issuerUrl: !Join ['', ['https://cognito-idp.', !Ref 'AWS::Region', '.amazonaws.com/', !Ref CognitoUserPool]]
+        audience:
+          - !Ref CognitoUserPoolClient
+
+functions:
+  hello:
+    handler: handler.hello
+    events:
+      - httpApi:
+          path: /
+          method: get
+          authorizer:
+            name: serviceAuthorizer
+  login:
+    handler: handler.login
+    events:
+      - httpApi:
+          path: /login
+          method: post
+  change_password:
+    handler: handler.change_password
+    events:
+      - httpApi:
+          path: /change-password
+          method: post
+
+resources:
+  Resources:
+    CognitoUserPool:
+      Type: AWS::Cognito::UserPool
+      Properties:
+        UserPoolName: ${self:service}-user-pool
+        UsernameAttributes:
+          - email
+        AutoVerifiedAttributes:
+          - email
+
+    CognitoUserPoolClient:
+      Type: AWS::Cognito::UserPoolClient
+      Properties:
+        ClientName: ${self:service}-user-pool-client
+        UserPoolId: !Ref CognitoUserPool
+        ExplicitAuthFlows:
+          - ALLOW_USER_PASSWORD_AUTH
+          - ALLOW_REFRESH_TOKEN_AUTH
+        GenerateSecret: false
+        AccessTokenValidity: 5
+        IdTokenValidity: 5
+        TokenValidityUnits:
+          AccessToken: minutes
+          IdToken: minutes
