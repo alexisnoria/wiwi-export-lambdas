@@ -10,9 +10,11 @@ provider:
         - cognito-idp:InitiateAuth
         - s3:ListBucket
         - s3:GetObject
+        - dynamodb:PutItem
       Resource: "*"
   environment:
     COGNITO_CLIENT_ID: !Ref CognitoUserPoolClient
+    AUDIT_TABLE_NAME: !Ref AuditTable
 
   httpApi:
     cors:
@@ -82,3 +84,15 @@ resources:
         TokenValidityUnits:
           AccessToken: minutes
           IdToken: minutes
+
+    AuditTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:service}-audit-table
+        AttributeDefinitions:
+          - AttributeName: requestId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: requestId
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST

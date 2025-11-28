@@ -1,6 +1,7 @@
 import json
 import boto3
 import os
+import datetime
 
 def login(event, context):
     try:
@@ -145,8 +146,36 @@ def get_latest_csv(bucket_name):
     )[0]
     
     return latest_file['Key']
-
 def hello(event, context):
+    # Audit logging
+    try:
+        table_name = os.environ.get('AUDIT_TABLE_NAME')
+        if table_name:
+            dynamodb = boto3.resource('dynamodb')
+            table = dynamodb.Table(table_name)
+            
+            # Extract user info from JWT claims
+            claims = event.get('requestContext', {}).get('authorizer', {}).get('jwt', {}).get('claims', {})
+            user_email = claims.get('email', 'unknown')
+            user_sub = claims.get('sub', 'unknown')
+            
+            # Extract IP address
+            source_ip = event.get('requestContext', {}).get('http', {}).get('sourceIp', 'unknown')
+            
+            table.put_item(
+                Item={
+                    'requestId': context.aws_request_id,
+                    'timestamp': datetime.datetime.utcnow().isoformat(),
+                    'userEmail': user_email,
+                    'userId': user_sub,
+                    'sourceIp': source_ip,
+                    'action': 'download_csv'
+                }
+            )
+    except Exception as e:
+        print(f"Audit logging failed: {str(e)}")
+
+    bucket_name = "export-data-qa6nwc27gv"
     bucket_name = "export-data-qa6nwc27gv"
     
     try:
