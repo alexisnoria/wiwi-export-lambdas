@@ -188,16 +188,17 @@ def hello(event, context):
             }
 
         s3 = boto3.client('s3')
-        file_obj = s3.get_object(Bucket=bucket_name, Key=latest_file_key)
-        content = file_obj['Body'].read().decode('utf-8')
+        #regresar la ulr firmada por 5 minutos
+        presigned_url = s3.generate_presigned_url('get_object',
+                                                  Params={'Bucket': bucket_name, 'Key': latest_file_key},
+                                                  ExpiresIn=300)
         
         return {
             "statusCode": 200,
             "headers": {
-                "Content-Type": "text/csv",
-                "Content-Disposition": f'attachment; filename="{latest_file_key}"'
+                "Content-Type": "application/json"
             },
-            "body": content
+            "body": json.dumps({"download_url": presigned_url})
         }
 
     except Exception as e:
