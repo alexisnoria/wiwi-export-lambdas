@@ -198,7 +198,7 @@ def hello(event, context):
             "headers": {
                 "Content-Type": "application/json"
             },
-            "body": json.dumps({"download_url": presigned_url})
+            "body": json.dumps({"download_url": presigned_url, "filename": latest_file_key})
         }
 
     except Exception as e:
