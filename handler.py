@@ -50,6 +50,7 @@ def login(event, context):
             "statusCode": 200,
             "body": json.dumps({
                 "message": "Login successful",
+                "username": username,
                 "auth_result": response['AuthenticationResult']
             })
         }
@@ -122,12 +123,12 @@ def change_password(event, context):
         }
 
 
-def get_latest_csv(bucket_name):
+def get_latest_files(bucket_name, count=2):
     s3 = boto3.client('s3')
     response = s3.list_objects_v2(Bucket=bucket_name)
     
     if 'Contents' not in response:
-        return None
+        return []
         
     csv_files = [
         obj for obj in response['Contents'] 
@@ -135,17 +136,16 @@ def get_latest_csv(bucket_name):
     ]
     
     if not csv_files:
-        return None
+        return []
         
     # Sort by LastModified descending
-    latest_file = sorted(
+    sorted_files = sorted(
         csv_files, 
         key=lambda x: x['LastModified'],
-        
         reverse=True
-    )[0]
+    )
     
-    return latest_file['Key']
+    return [f['Key'] for f in sorted_files[:count]]
 def hello(event, context):
     # Audit logging
     try:
@@ -176,29 +176,34 @@ def hello(event, context):
         print(f"Audit logging failed: {str(e)}")
 
     bucket_name = "export-data-qa6nwc27gv"
-    bucket_name = "export-data-qa6nwc27gv"
     
     try:
-        latest_file_key = get_latest_csv(bucket_name)
+        latest_files = get_latest_files(bucket_name, count=2)
         
-        if not latest_file_key:
+        if not latest_files:
             return {
                 "statusCode": 404,
                 "body": json.dumps({"message": "No CSV files found."})
             }
 
         s3 = boto3.client('s3')
-        #regresar la ulr firmada por 5 minutos
-        presigned_url = s3.generate_presigned_url('get_object',
-                                                  Params={'Bucket': bucket_name, 'Key': latest_file_key},
-                                                  ExpiresIn=300)
+        files_data = []
+        
+        for file_key in latest_files:
+            presigned_url = s3.generate_presigned_url('get_object',
+                                                      Params={'Bucket': bucket_name, 'Key': file_key},
+                                                      ExpiresIn=300)
+            files_data.append({
+                "filename": file_key,
+                "download_url": presigned_url
+            })
         
         return {
             "statusCode": 200,
             "headers": {
                 "Content-Type": "application/json"
             },
-            "body": json.dumps({"download_url": presigned_url, "filename": latest_file_key})
+            "body": json.dumps({"files": files_data})
         }
 
     except Exception as e:
